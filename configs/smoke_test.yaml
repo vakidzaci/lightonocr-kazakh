@@ -1,0 +1,26 @@
+# Tiny end-to-end check (runs on a 4 GB laptop GPU): a few steps on synthetic word/line crops only.
+#   python -m generator.generate --lines 300 --pages 0 --workers 4
+#   python train.py --config configs/smoke_test.yaml
+model_name: lightonai/LightOnOCR-2-1B
+output_dir: outputs/smoke
+mode: lora
+model_dtype: bfloat16
+lora: {r: 8, alpha: 16, dropout: 0.0, train_projector: false}
+data:
+  max_length: 1024
+  train:
+    - {manifest: data/train/synthetic/manifest.jsonl, max_chars: 60}
+  val:
+    - {manifest: data/val/synthetic/manifest.jsonl, max_samples: 8, optional: true}
+training:
+  max_steps: 30
+  batch_size: 2
+  grad_accum: 2
+  lr: 2.0e-4
+  warmup: 0.1
+  logging_steps: 5
+  eval_steps: 15
+  save_steps: 15
+  save_total_limit: 1
+  num_workers: 2
+  report_to: none

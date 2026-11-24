@@ -1,0 +1,41 @@
+# Cheap pilot (~1-2 h on an RTX 4090): a capped subset of every source. Run this first: if the reading probes
+# (probe_made_up Kazakh-letter recall, probe_misspelled copy rate) clearly improve over the baseline, launch the
+# full train_lora.yaml run. Needs the same data as the full run (scripts/download_all.sh + generator).
+
+model_name: lightonai/LightOnOCR-2-1B-base
+output_dir: outputs/lora-pilot
+mode: lora
+model_dtype: bfloat16
+lora: {r: 32, alpha: 64, dropout: 0.05, train_projector: true}
+
+data:
+  max_length: 4096
+  train:
+    - {manifest: data/train/synthetic/manifest.jsonl, max_samples: 15000}
+    - {manifest: data/train/darmm/hard.jsonl, max_samples: 8000}
+    - {manifest: data/train/darmm/page.jsonl, max_samples: 1500}
+    - {manifest: data/train/turkicocr/manifest.jsonl, max_samples: 2500}
+    - {manifest: data/train/docatlas/manifest.jsonl, max_samples: 800}
+    - {manifest: data/train/custom/manifest.jsonl, repeat: 3, optional: true}
+  val:
+    - {manifest: data/val/synthetic/manifest.jsonl, max_samples: 100}
+    - {manifest: data/val/darmm/page.jsonl, max_samples: 50}
+
+training:
+  epochs: 1
+  batch_size: 4
+  grad_accum: 4
+  lr: 1.0e-4
+  scheduler: cosine
+  warmup: 0.05
+  bf16: true
+  gradient_checkpointing: true
+  logging_steps: 10
+  eval_steps: 300
+  save_steps: 300
+  save_total_limit: 2
+  num_workers: 8
+  seed: 42
+  report_to: tensorboard
+
+hub: {push: false, repo_id: null, private: true}

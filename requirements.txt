@@ -1,0 +1,17 @@
+# PyTorch is NOT listed: use the one that comes with your GPU image (vast.ai "PyTorch" template), or install it
+# for your CUDA version first: https://pytorch.org/get-started/locally/  (tested with torch 2.14.1)
+# Versions below are the ones this repo was tested with.
+transformers==5.24.0
+peft==0.22.0
+accelerate==1.16.0
+huggingface_hub[hf_xet]==2.4.0
+safetensors>=0.8.0
+tokenizers>=0.23.3
+pyarrow==26.0.1
+rapidfuzz==3.14.6
+fonttools==4.68.0
+PyYAML==6.0.4
+pillow>=11.0
+numpy>=2.0
+pypdfium2==5.15.2
+tensorboard

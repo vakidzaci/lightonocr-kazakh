@@ -1,0 +1,48 @@
+# Full fine-tune of the text decoder + projector (image encoder frozen) - needs an 80 GB GPU (A100 / H100).
+# Usually a bit more accurate than LoRA; use it once the LoRA run has shown the data mix works.
+
+model_name: lightonai/LightOnOCR-2-1B-base
+output_dir: outputs/full
+mode: full
+model_dtype: float32           # fp32 master weights + bf16 autocast: stabler than pure-bf16 training
+
+full:
+  train_projector: true
+
+data:
+  max_length: 4096
+  train:
+    - {manifest: data/train/synthetic/manifest.jsonl}
+    - {manifest: data/train/darmm/hard.jsonl}
+    - {manifest: data/train/darmm/clean.jsonl, max_samples: 30000}
+    - {manifest: data/train/darmm/page.jsonl}
+    - {manifest: data/train/turkicocr/manifest.jsonl}
+    - {manifest: data/train/docatlas/manifest.jsonl}
+    - {manifest: data/train/custom/manifest.jsonl, repeat: 3, optional: true}
+  val:
+    - {manifest: data/val/synthetic/manifest.jsonl, max_samples: 200}
+    - {manifest: data/val/darmm/page.jsonl, max_samples: 100}
+    - {manifest: data/val/turkicocr/manifest.jsonl, max_samples: 100, optional: true}
+
+training:
+  epochs: 1
+  batch_size: 8
+  grad_accum: 2                # effective batch 16
+  lr: 2.0e-5                   # full fine-tuning needs a much smaller LR than LoRA
+  scheduler: cosine
+  warmup: 0.03
+  weight_decay: 0.01
+  bf16: true
+  gradient_checkpointing: true
+  logging_steps: 10
+  eval_steps: 500
+  save_steps: 500
+  save_total_limit: 2          # full checkpoints are ~6 GB each (weights + optimizer)
+  num_workers: 12
+  seed: 42
+  report_to: tensorboard
+
+hub:
+  push: false
+  repo_id: null
+  private: true

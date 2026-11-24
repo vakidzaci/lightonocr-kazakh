@@ -1,0 +1,52 @@
+# LoRA fine-tune - fits one 24 GB GPU (RTX 4090 / 3090 / A5000 / L4); faster on a 32 GB RTX 5090 or an A100.
+# Paths are relative to the repo root. Train/val/test manifests come from data_scripts/* and generator/.
+
+model_name: lightonai/LightOnOCR-2-1B-base   # LightOn recommends the -base model for fine-tuning.
+                                             # Alternatives: lightonai/LightOnOCR-2-1B, lightonai/LightOnOCR-3-1B (same architecture)
+output_dir: outputs/lora-r32
+mode: lora
+model_dtype: bfloat16
+
+lora:
+  r: 32
+  alpha: 64
+  dropout: 0.05
+  train_projector: true        # also fully train the small (6M) vision->text projector
+
+data:
+  max_length: 4096             # tokens (image + text); longer pages are truncated
+  train:
+    - {manifest: data/train/synthetic/manifest.jsonl}                  # made-up words, misspellings, names: forces letter reading
+    - {manifest: data/train/darmm/hard.jsonl}                          # ~66k degraded word/line crops
+    - {manifest: data/train/darmm/clean.jsonl, max_samples: 30000}     # clean word/line crops
+    - {manifest: data/train/darmm/page.jsonl}                          # ~11k pages
+    - {manifest: data/train/turkicocr/manifest.jsonl}                  # Kazakh official-document pages (stamps, tables)
+    - {manifest: data/train/docatlas/manifest.jsonl}                   # Russian/English pages: keep the old skills
+    - {manifest: data/train/custom/manifest.jsonl, repeat: 3, optional: true}   # your own labeled pages (books), upweighted
+  val:
+    - {manifest: data/val/synthetic/manifest.jsonl, max_samples: 200}
+    - {manifest: data/val/darmm/page.jsonl, max_samples: 100}
+    - {manifest: data/val/turkicocr/manifest.jsonl, max_samples: 100, optional: true}
+
+training:
+  epochs: 1
+  batch_size: 4                # per GPU; crops and pages are batched separately
+  grad_accum: 4                # effective batch 16
+  lr: 1.0e-4
+  scheduler: cosine
+  warmup: 0.03                 # fraction of total steps
+  weight_decay: 0.0
+  bf16: true
+  gradient_checkpointing: true
+  logging_steps: 10
+  eval_steps: 500
+  save_steps: 500
+  save_total_limit: 3
+  num_workers: 8
+  seed: 42
+  report_to: tensorboard       # tensorboard --logdir outputs/
+
+hub:
+  push: false                  # true: upload checkpoints + final adapter (needs HF_TOKEN)
+  repo_id: null                # e.g. your-name/lightonocr-2-1b-kazakh-lora
+  private: true

@@ -1,0 +1,24 @@
+# downloaded / generated data, checkpoints, logs
+data/
+outputs/
+runs/
+*.log
+nohup.out
+
+# fonts you add locally may be proprietary (e.g. Times New Roman) - don't commit them
+fonts/*
+!fonts/README.md
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+.pytest_cache/
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
