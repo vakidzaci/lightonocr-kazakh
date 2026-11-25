@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import multiprocessing as mp
+import os
 import random
 from pathlib import Path
 
@@ -65,6 +66,46 @@ def _make(job: tuple[int, str, int, str | None, str | None]) -> dict:
     return rec
 
 
+def _cgroup_quota(d: Path, v2: bool) -> float | None:
+    """CPU quota of one cgroup directory, in CPUs; None if it has none."""
+    try:
+        if v2:
+            quota, period = (d / "cpu.max").read_text().split()  # "<quota> <period>" or "max <period>"
+            return None if quota == "max" else int(quota) / int(period)
+        quota = int((d / "cpu.cfs_quota_us").read_text())  # -1 = no quota
+        return quota / int((d / "cpu.cfs_period_us").read_text()) if quota > 0 else None
+    except (OSError, ValueError, ZeroDivisionError):
+        return None
+
+
+def usable_cpus() -> int:
+    """CPUs this process can really use: its affinity mask, capped by any cgroup CPU quota up to the root.
+
+    In a container (vast.ai, `docker --cpus`) os.cpu_count() reports every core of the host, not the
+    container's share, so a pool sized from it starts far too many workers.
+    """
+    n = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
+    try:
+        lines = Path("/proc/self/cgroup").read_text().splitlines()
+    except OSError:
+        return n
+    for line in lines:
+        _, controllers, rel = line.split(":", 2)
+        v2 = controllers == ""
+        if not v2 and "cpu" not in controllers.split(","):
+            continue
+        root = Path("/sys/fs/cgroup" if v2 else "/sys/fs/cgroup/cpu")
+        d = root / rel.strip().lstrip("/")
+        while True:  # a limit may sit on a parent cgroup; inside a container the path may not exist -> root
+            q = _cgroup_quota(d, v2)
+            if q is not None:
+                n = min(n, max(1, int(q)))
+            if d == root or d == d.parent:
+                break
+            d = d.parent
+    return n
+
+
 def _run(jobs, fonts, mix, out_dir: Path, workers: int) -> list[dict]:
     out_dir.mkdir(parents=True, exist_ok=True)
     if workers <= 1:
@@ -89,7 +130,8 @@ def main() -> None:
     ap.add_argument("--pages", type=int, default=4000)
     ap.add_argument("--val-fraction", type=float, default=0.02)
     ap.add_argument("--mix", default=DEFAULT_MIX)
-    ap.add_argument("--workers", type=int, default=max(1, mp.cpu_count() - 1))
+    ap.add_argument("--workers", type=int, default=max(1, usable_cpus() - 1),
+                    help="worker processes (default: usable CPUs - 1, respecting container CPU limits)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", type=Path, default=DATA_DIR / "train" / "synthetic")
     ap.add_argument("--probe", action="store_true", help="generate the fixed reading-probe test sets instead")

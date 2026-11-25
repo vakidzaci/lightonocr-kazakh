@@ -2,7 +2,8 @@
 # Whole pipeline: data -> synthetic data -> baseline eval -> train -> eval -> (merge). Re-runnable: finished steps
 # are skipped and training resumes from its last checkpoint. Run it inside tmux so it survives disconnects:
 #   tmux new -s ocr "bash scripts/run_all.sh configs/train_lora.yaml 2>&1 | tee -a run.log"
-# Env vars: SYN_LINES (default 40000), SYN_PAGES (4000), EVAL_LIMIT (300 samples per test set)
+# Env vars: SYN_LINES (default 40000), SYN_PAGES (4000), EVAL_LIMIT (300 samples per test set),
+#           GEN_WORKERS (generator processes; default: usable CPUs - 1)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG=${1:-configs/train_lora.yaml}
@@ -14,11 +15,11 @@ bash scripts/download_all.sh
 
 if [ ! -f data/train/synthetic/manifest.jsonl ]; then
   echo "==> synthetic training data"
-  python -m generator.generate --lines "${SYN_LINES:-40000}" --pages "${SYN_PAGES:-4000}"
+  python -m generator.generate --lines "${SYN_LINES:-40000}" --pages "${SYN_PAGES:-4000}" ${GEN_WORKERS:+--workers "$GEN_WORKERS"}
 fi
 if [ ! -f data/test/probe_correct/manifest.jsonl ]; then
   echo "==> reading probes"
-  python -m generator.generate --probe
+  python -m generator.generate --probe ${GEN_WORKERS:+--workers "$GEN_WORKERS"}
 fi
 
 if [ ! -f outputs/eval/baseline-n$EVAL_LIMIT/results.json ]; then
